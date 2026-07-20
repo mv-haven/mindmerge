@@ -1,43 +1,23 @@
-// Haven brand lockup. The mark is a clean recreation of Haven's house-"H"
-// glyph as inline SVG (drop in the official SVG when handy). Uses currentColor
-// so it inherits the surrounding text color.
-export function HavenMark({ size = 18, className }) {
+// Haven's real wordmark (pulled from usehaven.ai). It uses currentColor, so tint
+// it by setting the wrapper's `color` (Haven purple on light, white on dark).
+const HAVEN_LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 58" fill="none" role="img" aria-label="Haven"><g><path d="M104.666 18.1768L115.117 42.5241L125.632 18.1768H134.959L117.501 56.2444H112.399L94.9399 18.1768H104.666Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M80.9805 22.4515C79.8644 21.1826 78.549 20.1119 76.9944 19.2872C74.7624 18.0183 72.1874 17.3838 69.2617 17.3838C65.8099 17.3838 62.6689 18.28 59.8548 20.0803C57.0885 21.8249 54.8883 24.2042 53.2381 27.2179C51.6437 30.1761 50.8465 33.5387 50.8465 37.29C50.8465 41.0411 51.6437 44.3483 53.2381 47.3619C54.8883 50.3201 57.0885 52.6756 59.8548 54.4204C62.6689 56.1652 65.8099 57.0374 69.2617 57.0374C72.1874 57.0374 74.7863 56.4269 77.0742 55.2135C78.6048 54.3648 79.9043 53.3101 80.9805 52.057V56.2445H89.7497V18.1769H80.9805V22.4515ZM78.5092 45.5379C76.5401 47.703 73.9412 48.7895 70.6966 48.7895C68.5682 48.7895 66.6868 48.3136 65.0365 47.3619C63.4422 46.3548 62.1667 44.9828 61.21 43.238C60.3092 41.4932 59.8548 39.4867 59.8548 37.2107C59.8548 34.9345 60.3092 32.928 61.21 31.1832C62.1667 29.4384 63.4422 28.0903 65.0365 27.1386C66.6868 26.1314 68.5682 25.6318 70.6966 25.6318C72.8252 25.6318 74.7624 26.1314 76.3567 27.1386C78.007 28.0903 79.2824 29.4384 80.1832 31.1832C81.0841 32.928 81.5385 34.9345 81.5385 37.2107C81.5385 40.597 80.5261 43.3729 78.5092 45.5379Z" fill="currentColor"/><path d="M189.865 22.4515C190.982 21.1826 192.298 20.1119 193.853 19.2871C196.084 18.0183 198.659 17.3838 201.585 17.3838C205.036 17.3838 208.177 18.2799 210.992 20.0801C213.759 21.8249 215.959 24.2042 217.609 27.2179C219.203 30.176 220 33.5387 220 37.2898V56.2443H210.992V37.2105C210.992 34.9345 210.537 32.928 209.637 31.1832C208.68 29.4384 207.404 28.0902 205.81 27.1386C204.16 26.1314 202.278 25.6318 200.15 25.6318C196.722 25.7413 189.865 28.2106 189.865 37.2105V56.2443H181.097V18.1769H189.865V22.4515Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M174.635 38.7698L174.777 36.487L174.776 36.4377C174.451 25.5073 165.92 17.0508 154.953 17.0508C143.833 17.0508 135.054 25.898 135.054 36.8532C135.054 47.8085 143.756 56.6557 155.03 56.6557C161.974 56.6557 168.081 53.208 171.561 47.5875L164.978 43.3544C162.782 46.7582 159.077 48.831 154.953 48.831C149.059 48.831 144.101 44.5436 143.232 38.7698H174.635ZM154.953 24.8756C159.696 24.8756 163.635 27.5923 165.457 31.5591H144.31C146.195 27.5449 150.196 24.8756 154.953 24.8756Z" fill="currentColor"/><path d="M0 0H8.76916V24.8732L22.614 18.4405L36.4589 24.8732V0H45.2281V56.2437H36.4589V33.8789L22.614 27.4462L8.76916 33.8789V56.2437H0V0Z" fill="currentColor"/><path d="M18.0294 47.1738H27.0444V56.1796H18.0294V47.1738Z" fill="currentColor"/></g></svg>`;
+
+export function HavenLogo({ height = 18, color, className }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 28 26"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path
-        d="M2.5 11.5 L14 2 L25.5 11.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <rect x="3.2" y="11" width="4" height="13" rx="1.2" />
-      <rect x="20.8" y="11" width="4" height="13" rx="1.2" />
-      <rect x="7.2" y="14.8" width="13.6" height="3.4" rx="1" />
-      <rect x="12" y="18.6" width="4" height="5.4" rx="1" />
-    </svg>
+    <span
+      className={`haven-logo ${className || ''}`}
+      style={{ display: 'inline-flex', height, lineHeight: 0, ...(color ? { color } : {}) }}
+      dangerouslySetInnerHTML={{ __html: HAVEN_LOGO }}
+    />
   );
 }
 
-// Small "powered by Haven" attribution that links to usehaven.ai.
+// "powered by <Haven wordmark>" attribution, linking usehaven.ai.
 export function PoweredByHaven({ className }) {
   return (
-    <a
-      className={className}
-      href="https://usehaven.ai"
-      target="_blank"
-      rel="noreferrer"
-      aria-label="Powered by Haven"
-    >
-      powered by <HavenMark size={15} /> <b>Haven</b>
+    <a className={className} href="https://usehaven.ai" target="_blank" rel="noreferrer" aria-label="Powered by Haven">
+      <span className="lg-by__label">powered by</span>
+      <HavenLogo height={17} />
     </a>
   );
 }

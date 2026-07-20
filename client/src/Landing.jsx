@@ -1,5 +1,5 @@
 import './landing.css';
-import { PoweredByHaven } from './components/HavenBrand.jsx';
+import { PoweredByHaven, HavenLogo } from './components/HavenBrand.jsx';
 
 const REPO = 'https://github.com/mv-haven/pmmap';
 const HAVEN = 'https://usehaven.ai';
@@ -119,7 +119,12 @@ export default function Landing() {
           <a href={REPO} target="_blank" rel="noreferrer">GitHub</a>
           <a href="/llms.txt">/llms.txt</a>
         </span>
-        <span className="lg-foot__legal">MIT © 2026 ClavaInc (Haven)</span>
+        <span className="lg-foot__legal">
+          <a className="lg-foot__haven" href={HAVEN} target="_blank" rel="noreferrer" aria-label="Haven">
+            <HavenLogo height={18} color="var(--accent)" />
+          </a>
+          MIT © 2026 ClavaInc
+        </span>
       </footer>
     </div>
   );
