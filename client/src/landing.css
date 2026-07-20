@@ -1,24 +1,25 @@
 /* MindMerge landing — editorial "engineering notebook": warm paper, ink,
    a bold indigo, and a node-graph motif that echoes the real canvas. */
 .lg {
-  --paper: #f7f4ec;
-  --paper-2: #fffdf8;
-  --ink: #17150f;
-  --ink-soft: #5c5647;
-  --accent: #4f46e5;
-  --accent-ink: #3730c4;
+  /* Haven brand: purple #5840EE -> #7B40EE, Inter, clean white/slate. */
+  --paper: #ffffff;
+  --paper-2: #ffffff;
+  --ink: #100e1c;
+  --ink-soft: #56536b;
+  --accent: #5840ee;
+  --accent-ink: #4331c9;
   --green: #0e9f6e;
-  --purple: #8b5cf6;
-  --line: rgba(23, 21, 15, 0.14);
+  --purple: #7b40ee;
+  --line: rgba(16, 14, 28, 0.10);
 
-  --display: 'Fraunces', Georgia, serif;
-  --sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --display: 'Inter', system-ui, sans-serif;
+  --sans: 'Inter', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
 
   min-height: 100vh;
   color: var(--ink);
   background-color: var(--paper);
-  background-image: radial-gradient(rgba(23, 21, 15, 0.05) 1.3px, transparent 1.3px);
+  background-image: radial-gradient(rgba(88, 64, 238, 0.06) 1.3px, transparent 1.3px);
   background-size: 22px 22px;
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -32,7 +33,7 @@
   max-width: 1120px; margin: 0 auto; padding: 26px 28px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.lg-wordmark { font-family: var(--display); font-weight: 600; font-size: 21px; letter-spacing: -0.01em; display: inline-flex; align-items: baseline; gap: 9px; }
+.lg-wordmark { font-family: var(--display); font-weight: 800; font-size: 20px; letter-spacing: -0.02em; display: inline-flex; align-items: baseline; gap: 9px; }
 .lg-diamond { color: var(--accent); }
 .lg-by { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--ink-soft); letter-spacing: 0; }
 .lg-nav { display: flex; align-items: center; gap: 26px; font-weight: 500; font-size: 15px; }
@@ -70,10 +71,10 @@
 .lg-kicker::before { content: ''; width: 26px; height: 2px; background: var(--accent); border-radius: 2px; }
 
 .lg-h1 {
-  font-family: var(--display); font-weight: 600; font-size: clamp(40px, 6vw, 66px);
-  line-height: 1.02; letter-spacing: -0.025em; margin: 0 0 22px;
+  font-family: var(--display); font-weight: 800; font-size: clamp(40px, 6vw, 64px);
+  line-height: 1.05; letter-spacing: -0.035em; margin: 0 0 22px;
 }
-.lg-h1 em { font-style: italic; color: var(--accent); }
+.lg-h1 em { font-style: normal; color: var(--accent); }
 .lg-lede { font-size: 19px; line-height: 1.55; color: var(--ink-soft); max-width: 30em; margin: 0 0 30px; }
 .lg-cta { display: flex; gap: 14px; flex-wrap: wrap; }
 .lg-cta--center { justify-content: center; }
@@ -102,8 +103,8 @@
 /* ---- how it works ---- */
 .lg-how { max-width: 1120px; margin: 0 auto; padding: 40px 28px 80px; }
 .lg-h2 {
-  font-family: var(--display); font-weight: 600; font-size: clamp(28px, 4vw, 42px);
-  letter-spacing: -0.02em; line-height: 1.08; margin: 0 0 44px; max-width: 16em;
+  font-family: var(--display); font-weight: 700; font-size: clamp(26px, 4vw, 38px);
+  letter-spacing: -0.03em; line-height: 1.1; margin: 0 0 20px; max-width: 16em;
 }
 .lg-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--line); }
 .lg-step { background: var(--paper-2); padding: 34px 30px; }
@@ -122,6 +123,31 @@
 .lg-card--wide { grid-column: span 2; }
 .lg-card h3 { font-family: var(--display); font-weight: 600; font-size: 22px; margin: 0 0 10px; letter-spacing: -0.01em; }
 .lg-card p { margin: 0; color: var(--ink-soft); line-height: 1.55; font-size: 15.5px; }
+
+/* ---- agent directive (the point of the page) ---- */
+.lg-directive {
+  max-width: 1120px; margin: 6px auto 46px; padding: 40px;
+  background: rgba(88, 64, 238, 0.05); border-radius: 24px;
+  display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center;
+}
+.lg-directive__badge { color: var(--accent); font-weight: 700; font-size: 14px; display: block; margin-bottom: 10px; }
+.lg-directive .lg-h2 { margin-bottom: 14px; }
+.lg-directive__lede { font-size: 16.5px; line-height: 1.55; color: var(--ink-soft); margin: 0 0 22px; max-width: 34em; }
+.lg-do {
+  margin: 0; padding: 24px 24px 24px 26px; list-style: none; counter-reset: step;
+  background: #100e1c; border-radius: 18px; display: flex; flex-direction: column; gap: 13px;
+}
+.lg-do li {
+  counter-increment: step; color: #d3cdeb; font-size: 14px; line-height: 1.5;
+  position: relative; padding-left: 32px;
+}
+.lg-do li::before {
+  content: counter(step); position: absolute; left: 0; top: 1px;
+  width: 21px; height: 21px; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.lg-do code { font-family: var(--mono); font-size: 12.5px; color: #b7a6ff; }
+.lg-note a { color: var(--accent-ink); text-decoration: underline; }
 
 /* ---- model strip ---- */
 .lg-model {
@@ -161,13 +187,23 @@
 .lg-final .lg-btn--ghost { background: transparent; color: var(--paper-2); border-color: rgba(255, 255, 255, 0.4); }
 .lg-final .lg-btn--ghost:hover { color: #fff; border-color: #fff; }
 
+/* ---- why page ---- */
+.lg-why { max-width: 720px; margin: 0 auto; padding: 24px 28px 40px; }
+.lg-why .lg-h1 { font-size: clamp(34px, 5vw, 52px); margin-bottom: 22px; }
+.lg-why__lead { font-size: 22px; font-weight: 600; line-height: 1.35; color: var(--ink); margin: 0 0 24px; letter-spacing: -0.015em; }
+.lg-why p { font-size: 17px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 20px; }
+.lg-why a:not(.lg-btn) { color: var(--accent-ink); text-decoration: underline; }
+.lg-why .lg-cta { margin-top: 32px; }
+
 /* ---- footer ---- */
 .lg-foot {
   max-width: 1120px; margin: 0 auto; padding: 30px 28px 50px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-soft); flex-wrap: wrap;
 }
-.lg-foot span:first-child { font-family: var(--display); font-weight: 600; color: var(--ink); }
+.lg-foot span:first-child { font-family: var(--display); font-weight: 700; color: var(--ink); }
+.lg-foot__links { display: flex; gap: 18px; flex-wrap: wrap; }
+.lg-foot__legal { color: var(--ink-soft); }
 .lg-foot a:hover { color: var(--accent-ink); }
 
 @media (max-width: 860px) {
@@ -178,5 +214,6 @@
   .lg-card--wide { grid-column: span 1; }
   .lg-prompts { grid-template-columns: 1fr; }
   .lg-model { grid-template-columns: 1fr; gap: 14px; }
+  .lg-directive { grid-template-columns: 1fr; gap: 26px; padding: 30px 24px; }
   .lg-nav a:not(.lg-btn) { display: none; }
 }

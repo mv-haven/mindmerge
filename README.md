@@ -40,7 +40,7 @@ conflicts, and fill gaps — no special integration required.
 ## Run locally (zero setup)
 
 ```bash
-git clone https://github.com/mv-haven/mindmerge.git pmmap
+git clone https://github.com/mv-haven/pmmap.git pmmap
 cd pmmap
 npm install
 npm --prefix client install

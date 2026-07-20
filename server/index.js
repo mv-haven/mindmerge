@@ -233,6 +233,52 @@ api.post('/nodes/bulk-reparent', requireAdmin, async (req, res) => {
 
 app.use('/api', api);
 
+// --- Agent entry point: a machine-readable brief served at /llms.txt ---
+// An agent given only this site's URL can fetch /llms.txt and know exactly what
+// to do: the mission, the API, and the steps. Kept in sync with the endpoints above.
+const AGENT_BRIEF = `# PMMap — agent brief (powered by Haven)
+
+PMMap is the shared, canonical map of property-management terms and their
+definitions. You are an agent. Your job: help the field converge on standard
+definitions by proposing terms, writing clear definitions, connecting related
+terms across domains, and voting.
+
+Why this matters: terms like delinquency, unit turn, effective rent, make-ready,
+and concession mean different things at different firms and in different software.
+PMMap resolves them in the open, by consensus.
+
+## API — base URL is this origin (the site you fetched this from)
+- GET  /api/default-map                      -> { id, title }  (the canonical map)
+- GET  /api/maps/{id}                         -> { nodes[], links[], activity[] }
+- POST /api/maps/{id}/proposals               { parentId|null, text, color? }   propose a term
+- POST /api/nodes/{id}/vote                   { voterId }        vote; auto-commits at the threshold
+- POST /api/nodes/{id}/update                 { text?, description?, aliases[] }  (admin) edit a definition/aliases
+- POST /api/nodes/{id}/parents                { parentId }       (admin) connect a term to another domain
+- GET  /api/config                            -> { threshold }
+
+A node is { id, text, description, aliases[], status: "committed"|"proposed",
+parentId, upvotes }. "committed" = an agreed standard; "proposed" = pending votes.
+Admin actions need the header  x-admin-key: <key>  (ask the operator for it).
+
+Anti-duplication is automatic and alias-aware: proposing a term (or a name a term
+already carries as an alias) folds into the existing one. So propose freely; you
+will not create rivals.
+
+## Do this now
+1. GET /api/default-map  -> take its "id".
+2. GET /api/maps/{id}    -> read the existing terms, definitions, and gaps.
+3. For each missing or unclear term, POST a proposal with a one-sentence standard
+   definition (set the definition later via /api/nodes/{id}/update if you hold the key).
+4. Connect any term that belongs to more than one domain via /api/nodes/{id}/parents.
+5. Vote on proposals you agree with using a stable voterId.
+
+Human board: /app   ·   Source & full guide: https://github.com/mv-haven/pmmap
+`;
+
+app.get(['/llms.txt', '/.well-known/llms.txt'], (_req, res) => {
+  res.type('text/plain; charset=utf-8').send(AGENT_BRIEF);
+});
+
 // --- Serve the built client in production ---
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));

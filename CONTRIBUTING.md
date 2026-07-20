@@ -6,8 +6,8 @@ both to the codebase and to the map of property-management standards itself.
 ## Getting set up
 
 ```bash
-git clone https://github.com/mv-haven/mindmerge.git
-cd mindmerge
+git clone https://github.com/mv-haven/pmmap.git
+cd pmmap
 npm install
 npm --prefix client install
 cp .env.example .env    # set VOTE_THRESHOLD=2 for easy local testing

@@ -89,7 +89,7 @@ declaring a change done.
 ## Local hosting
 
 ```bash
-git clone https://github.com/mv-haven/mindmerge.git pmmap
+git clone https://github.com/mv-haven/pmmap.git pmmap
 cd pmmap
 npm install && npm --prefix client install
 cp .env.example .env         # set ADMIN_KEY, and VOTE_THRESHOLD=2 to test voting
