@@ -83,16 +83,6 @@ scale to very large files. The production answer is **Postgres** — set
 `DATABASE_URL` and the store switches to targeted, durable, indexed writes with
 no code change.
 
-## Deploy to Render
-
-`render.yaml` provisions a web service (and, if you enable it, a managed Postgres).
-Push to GitHub, then create a **Blueprint** on Render from the repo.
-
-> **Note:** the current hosted service was created from a *public repo URL*, which
-> has **no GitHub webhook**, so pushes do **not** auto-deploy. Trigger a deploy
-> manually via the Render dashboard or API, or connect Render's GitHub app to the
-> repo to enable auto-deploy.
-
 ## License
 
 [MIT](LICENSE) © 2026 ClavaInc (Haven).
