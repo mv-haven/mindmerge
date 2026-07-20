@@ -148,8 +148,9 @@ api.post('/nodes/:id/reparent', requireAdmin, async (req, res) => {
   }
 });
 
-// Edit a node's name, description, or aliases. Admin only.
-api.post('/nodes/:id/update', requireAdmin, async (req, res) => {
+// Edit a node's name, description, or aliases. Open to everyone: proposals are
+// refined freely, and editing a committed node is recorded as a commit.
+api.post('/nodes/:id/update', async (req, res) => {
   try {
     const node = await store.updateNode({
       nodeId: req.params.id,

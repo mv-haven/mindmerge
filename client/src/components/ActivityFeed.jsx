@@ -18,11 +18,11 @@ export default function ActivityFeed({ activity }) {
       <ul className="feed__list">
         {activity?.map((a) => (
           <li key={a.id} className="feed__item">
-            <span className="feed__dot" />
+            <span className={`feed__dot ${a.kind === 'edit' ? 'feed__dot--edit' : ''}`} />
             <div>
               <strong>{a.text}</strong>
               <div className="feed__meta">
-                under {a.parentText} · {timeAgo(a.committedAt)}
+                {a.kind === 'edit' ? a.summary : `under ${a.parentText}`} · {timeAgo(a.at ?? a.committedAt)}
               </div>
             </div>
           </li>

@@ -20,7 +20,7 @@ export function normalizeText(t) {
 export function createMemoryStore({ threshold }) {
   // Shape: maps[id], nodes[id], votes[nodeId] = Set(voterId),
   // links = [{parentId, childId}] (extra parent edges beyond the primary tree).
-  const state = { maps: {}, nodes: {}, votes: {}, links: [] };
+  const state = { maps: {}, nodes: {}, votes: {}, links: [], events: [] };
   let saveTimer = null;
 
   async function load() {
@@ -30,6 +30,7 @@ export function createMemoryStore({ threshold }) {
       state.maps = parsed.maps || {};
       state.nodes = parsed.nodes || {};
       state.links = parsed.links || [];
+      state.events = parsed.events || [];
       state.votes = {};
       for (const [nodeId, voters] of Object.entries(parsed.votes || {})) {
         state.votes[nodeId] = new Set(voters);
@@ -46,6 +47,7 @@ export function createMemoryStore({ threshold }) {
         maps: state.maps,
         nodes: state.nodes,
         links: state.links,
+        events: state.events,
         votes: Object.fromEntries(
           Object.entries(state.votes).map(([k, set]) => [k, [...set]])
         ),
@@ -397,10 +399,34 @@ export function createMemoryStore({ threshold }) {
     async updateNode({ nodeId, text, description, aliases }) {
       const node = state.nodes[nodeId];
       if (!node) throw new Error('node-not-found');
-      if (typeof text === 'string' && text.trim()) node.text = text.trim();
-      if (typeof description === 'string') node.description = description;
+      const changed = [];
+      if (typeof text === 'string' && text.trim() && text.trim() !== node.text) {
+        node.text = text.trim();
+        changed.push('name');
+      }
+      if (typeof description === 'string' && description !== (node.description || '')) {
+        node.description = description;
+        changed.push('definition');
+      }
       if (Array.isArray(aliases)) {
-        node.aliases = aliases.map((a) => String(a).trim()).filter(Boolean);
+        const norm = aliases.map((a) => String(a).trim()).filter(Boolean);
+        if (norm.join('|') !== (node.aliases || []).join('|')) {
+          node.aliases = norm;
+          changed.push('aliases');
+        }
+      }
+      // Editing a committed node is itself a commit — record it in the log even
+      // though the node's identity is unchanged. Proposed edits aren't logged.
+      if (node.status === 'committed' && changed.length) {
+        state.events.push({
+          id: nanoid(10),
+          mapId: node.mapId,
+          nodeId: node.id,
+          kind: 'edit',
+          text: node.text,
+          summary: `${changed.join(' & ')} updated`,
+          at: new Date().toISOString(),
+        });
       }
       scheduleSave();
       return shapeNode(node);
@@ -428,16 +454,19 @@ export function createMemoryStore({ threshold }) {
     },
 
     async getActivity(mapId) {
-      return Object.values(state.nodes)
+      const commits = Object.values(state.nodes)
         .filter((n) => n.mapId === mapId && n.status === 'committed' && n.parentId)
-        .sort((a, b) => (a.committedAt < b.committedAt ? 1 : -1))
-        .slice(0, 30)
         .map((n) => ({
-          id: n.id,
+          id: `c:${n.id}`,
+          kind: 'commit',
           text: n.text,
           parentText: state.nodes[n.parentId]?.text || '(root)',
-          committedAt: n.committedAt,
+          at: n.committedAt,
         }));
+      const edits = state.events
+        .filter((e) => e.mapId === mapId)
+        .map((e) => ({ id: `e:${e.id}`, kind: 'edit', text: e.text, summary: e.summary, at: e.at }));
+      return [...commits, ...edits].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 30);
     },
   };
 }

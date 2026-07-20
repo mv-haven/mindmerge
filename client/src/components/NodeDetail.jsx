@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
 // Detail panel for a single selected node: its name, alternative names, an
-// editable description, and its child connections. Editing is admin-only.
+// editable definition, and its child connections. Anyone can edit; editing a
+// committed node is recorded as a commit. Structural swap stays admin-only.
 export default function NodeDetail({ node, children, isAdmin, onSave, onSelectNode, onSwap, onClose }) {
   const [text, setText] = useState(node.text);
   const [aliases, setAliases] = useState((node.aliases || []).join(', '));
@@ -37,49 +38,39 @@ export default function NodeDetail({ node, children, isAdmin, onSave, onSelectNo
         <button className="detail__close" onClick={onClose} title="Close">×</button>
       </div>
 
-      {isAdmin ? (
-        <input className="detail__name" value={text} onChange={(e) => setText(e.target.value)} />
-      ) : (
-        <h2 className="detail__name detail__name--ro">{node.text}</h2>
-      )}
+      <input
+        className="detail__name"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        aria-label="Name"
+      />
 
       <label className="detail__label">Also known as</label>
-      {isAdmin ? (
-        <input
-          className="detail__input"
-          placeholder="e.g. Make Ready, Turn"
-          value={aliases}
-          onChange={(e) => setAliases(e.target.value)}
-        />
-      ) : (node.aliases || []).length ? (
-        <div className="detail__aliases">
-          {node.aliases.map((a) => (
-            <span key={a} className="detail__alias">{a}</span>
-          ))}
-        </div>
-      ) : (
-        <p className="detail__empty">No alternative names.</p>
-      )}
+      <input
+        className="detail__input"
+        placeholder="e.g. Make Ready, Turn"
+        value={aliases}
+        onChange={(e) => setAliases(e.target.value)}
+      />
 
       <label className="detail__label">Definition</label>
-      {isAdmin ? (
-        <textarea
-          className="detail__desc"
-          placeholder="What does this term mean? Keep it to the shared standard."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={5}
-        />
-      ) : node.description ? (
-        <p className="detail__descro">{node.description}</p>
-      ) : (
-        <p className="detail__empty">No definition yet.</p>
-      )}
+      <textarea
+        className="detail__desc"
+        placeholder="What does this term mean? Keep it to the shared standard."
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={5}
+      />
 
-      {isAdmin && dirty && (
-        <button className="primarybtn detail__save" onClick={save} disabled={saving}>
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
+      {dirty && (
+        <div className="detail__saverow">
+          <button className="primarybtn detail__save" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : node.status === 'committed' ? 'Save as commit' : 'Save changes'}
+          </button>
+          {node.status === 'committed' && (
+            <span className="detail__savehint">Edits to a standard are logged as commits.</span>
+          )}
+        </div>
       )}
 
       <label className="detail__label">

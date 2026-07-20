@@ -104,6 +104,15 @@ export function createPostgresStore({ threshold, connectionString }) {
           child_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
           PRIMARY KEY (parent_id, child_id)
         );
+        CREATE TABLE IF NOT EXISTS events (
+          id TEXT PRIMARY KEY,
+          map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+          node_id TEXT REFERENCES nodes(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL,
+          text TEXT,
+          summary TEXT,
+          at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
       `);
     },
 
@@ -456,26 +465,40 @@ export function createPostgresStore({ threshold, connectionString }) {
     },
 
     async updateNode({ nodeId, text, description, aliases }) {
+      const { rows: cur } = await pool.query('SELECT * FROM nodes WHERE id = $1', [nodeId]);
+      if (!cur.length) throw new Error('node-not-found');
+      const node = cur[0];
       const sets = [];
       const vals = [nodeId];
       let i = 2;
-      if (typeof text === 'string' && text.trim()) { sets.push(`text = $${i++}`); vals.push(text.trim()); }
-      if (typeof description === 'string') { sets.push(`description = $${i++}`); vals.push(description); }
+      const changed = [];
+      if (typeof text === 'string' && text.trim() && text.trim() !== node.text) {
+        sets.push(`text = $${i++}`); vals.push(text.trim()); changed.push('name');
+      }
+      if (typeof description === 'string' && description !== (node.description || '')) {
+        sets.push(`description = $${i++}`); vals.push(description); changed.push('definition');
+      }
       if (Array.isArray(aliases)) {
-        sets.push(`aliases = $${i++}`);
-        vals.push(aliases.map((a) => String(a).trim()).filter(Boolean));
+        const norm = aliases.map((a) => String(a).trim()).filter(Boolean);
+        if (norm.join('|') !== (node.aliases || []).join('|')) {
+          sets.push(`aliases = $${i++}`); vals.push(norm); changed.push('aliases');
+        }
       }
-      if (!sets.length) {
-        const { rows } = await pool.query('SELECT * FROM nodes WHERE id = $1', [nodeId]);
-        if (!rows.length) throw new Error('node-not-found');
-        return rowToNode(rows[0]);
-      }
+      if (!sets.length) return rowToNode(node);
       const { rows } = await pool.query(
         `UPDATE nodes SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
         vals
       );
-      if (!rows.length) throw new Error('node-not-found');
-      return rowToNode(rows[0]);
+      const updated = rows[0];
+      // Editing a committed node is a commit; log it.
+      if (updated.status === 'committed' && changed.length) {
+        await pool.query(
+          `INSERT INTO events (id, map_id, node_id, kind, text, summary)
+           VALUES ($1, $2, $3, 'edit', $4, $5)`,
+          [nanoid(10), updated.map_id, updated.id, updated.text, `${changed.join(' & ')} updated`]
+        );
+      }
+      return rowToNode(updated);
     },
 
     async setPosition({ nodeId, x, y }) {
@@ -498,19 +521,25 @@ export function createPostgresStore({ threshold, connectionString }) {
 
     async getActivity(mapId) {
       const { rows } = await pool.query(
-        `SELECT n.id, n.text, n.committed_at, p.text AS parent_text
-           FROM nodes n
-           LEFT JOIN nodes p ON p.id = n.parent_id
+        `SELECT 'c:' || n.id AS id, 'commit' AS kind, n.text,
+                COALESCE(p.text, '(root)') AS parent_text, NULL::text AS summary,
+                n.committed_at AS at
+           FROM nodes n LEFT JOIN nodes p ON p.id = n.parent_id
           WHERE n.map_id = $1 AND n.status = 'committed' AND n.parent_id IS NOT NULL
-          ORDER BY n.committed_at DESC
-          LIMIT 30`,
+         UNION ALL
+         SELECT 'e:' || e.id, 'edit', e.text, NULL, e.summary, e.at
+           FROM events e WHERE e.map_id = $1
+         ORDER BY at DESC
+         LIMIT 30`,
         [mapId]
       );
       return rows.map((r) => ({
         id: r.id,
+        kind: r.kind,
         text: r.text,
-        parentText: r.parent_text || '(root)',
-        committedAt: r.committed_at,
+        parentText: r.parent_text,
+        summary: r.summary,
+        at: r.at,
       }));
     },
   };

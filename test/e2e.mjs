@@ -187,6 +187,28 @@ test('node update sets description and aliases', async () => {
   assert.deepEqual(upd.body.aliases, ['Make Ready', 'Turn']);
 });
 
+test('anyone can edit; a committed edit is logged as a commit', async () => {
+  const { mapId, rootId } = await freshMap();
+  const c = (await post(`/api/maps/${mapId}/proposals`, { parentId: rootId, text: 'Delinquency' }, true)).body.node;
+  // no admin key — open editing
+  const edit = await post(`/api/nodes/${c.id}/update`, { description: 'Rent past due.' });
+  assert.equal(edit.status, 200);
+  assert.equal(edit.body.description, 'Rent past due.');
+  const full = await get(`/api/maps/${mapId}`);
+  assert.ok(
+    full.body.activity.some((a) => a.kind === 'edit' && a.text === 'Delinquency'),
+    'committed edit shows in the commit log'
+  );
+});
+
+test('editing a proposed node does not log a commit', async () => {
+  const { mapId, rootId } = await freshMap();
+  const p = (await post(`/api/maps/${mapId}/proposals`, { parentId: rootId, text: 'Draft Term' })).body.node;
+  await post(`/api/nodes/${p.id}/update`, { description: 'draft def' });
+  const full = await get(`/api/maps/${mapId}`);
+  assert.equal(full.body.activity.some((a) => a.kind === 'edit'), false);
+});
+
 test('anti-dup matches an alias, not just the primary name', async () => {
   const { mapId, rootId } = await freshMap();
   const n = (await post(`/api/maps/${mapId}/proposals`, { parentId: rootId, text: 'Unit Turn' }, true)).body.node;

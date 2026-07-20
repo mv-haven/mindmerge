@@ -112,6 +112,7 @@ body { background: var(--bg); color: var(--ink); }
 .feed__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .feed__item { display: flex; gap: 10px; font-size: 13px; }
 .feed__dot { width: 9px; height: 9px; border-radius: 50%; background: #16a34a; margin-top: 4px; flex-shrink: 0; }
+.feed__dot--edit { background: #8b5cf6; }
 .feed__meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
 
 /* ---- Node detail panel (right sidebar) ---- */
@@ -151,7 +152,9 @@ body { background: var(--bg); color: var(--ink); }
 .detail__empty { margin: 4px 0 0; font-size: 13px; color: var(--muted); font-style: italic; }
 .detail__aliases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .detail__alias { background: #eef2ff; color: var(--accent); font-size: 13px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
-.detail__save { margin-top: 12px; align-self: flex-start; }
+.detail__save { align-self: flex-start; }
+.detail__saverow { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.detail__savehint { font-size: 12px; color: var(--muted); }
 
 .detail__children { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .detail__childrow { display: flex; align-items: stretch; gap: 4px; }
