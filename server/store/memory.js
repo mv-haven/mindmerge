@@ -135,6 +135,8 @@ export function createMemoryStore({ threshold }) {
         createdAt: now,
         committedAt: now,
         authorId: 'system',
+        description: '',
+        aliases: [],
         x: null,
         y: null,
       };
@@ -154,13 +156,16 @@ export function createMemoryStore({ threshold }) {
 
       // Anti-duplication: compare against siblings sharing the same parent.
       const key = normalizeText(text);
+      // A term matches by its primary name OR any of its aliases.
+      const matches = (n) =>
+        normalizeText(n.text) === key || (n.aliases || []).some((a) => normalizeText(a) === key);
       const siblings = Object.values(state.nodes).filter(
         (n) => n.mapId === mapId && (n.parentId || null) === parent
       );
-      if (siblings.some((n) => n.status === 'committed' && normalizeText(n.text) === key)) {
+      if (siblings.some((n) => n.status === 'committed' && matches(n))) {
         throw new Error('duplicate-committed');
       }
-      const dup = siblings.find((n) => n.status === 'proposed' && normalizeText(n.text) === key);
+      const dup = siblings.find((n) => n.status === 'proposed' && matches(n));
       if (dup) {
         // An admin "creating" a node that matches a pending proposal just
         // commits that proposal; everyone else folds into an upvote for it.
@@ -185,6 +190,8 @@ export function createMemoryStore({ threshold }) {
         createdAt: now,
         committedAt: asAdmin ? now : null,
         authorId: authorId || 'anon',
+        description: '',
+        aliases: [],
         x: null,
         y: null,
       };
@@ -312,6 +319,18 @@ export function createMemoryStore({ threshold }) {
       if (node.status !== 'committed') {
         node.status = 'committed';
         node.committedAt = new Date().toISOString();
+      }
+      scheduleSave();
+      return shapeNode(node);
+    },
+
+    async updateNode({ nodeId, text, description, aliases }) {
+      const node = state.nodes[nodeId];
+      if (!node) throw new Error('node-not-found');
+      if (typeof text === 'string' && text.trim()) node.text = text.trim();
+      if (typeof description === 'string') node.description = description;
+      if (Array.isArray(aliases)) {
+        node.aliases = aliases.map((a) => String(a).trim()).filter(Boolean);
       }
       scheduleSave();
       return shapeNode(node);

@@ -148,6 +148,22 @@ api.post('/nodes/:id/reparent', requireAdmin, async (req, res) => {
   }
 });
 
+// Edit a node's name, description, or aliases. Admin only.
+api.post('/nodes/:id/update', requireAdmin, async (req, res) => {
+  try {
+    const node = await store.updateNode({
+      nodeId: req.params.id,
+      text: req.body?.text,
+      description: req.body?.description,
+      aliases: req.body?.aliases,
+    });
+    await broadcastMap(node.mapId);
+    res.json(node);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // Add an extra parent edge to a node (multi-parent DAG). Admin only.
 // :id is the CHILD; body.parentId is the additional parent.
 api.post('/nodes/:id/parents', requireAdmin, async (req, res) => {

@@ -55,6 +55,7 @@ export const api = {
   adminDelete: (nodeId) => req('POST', `/api/nodes/${nodeId}/delete`),
   adminReparent: (nodeId, newParentId) =>
     req('POST', `/api/nodes/${nodeId}/reparent`, { newParentId }),
+  updateNode: (nodeId, patch) => req('POST', `/api/nodes/${nodeId}/update`, patch),
   bulkDelete: (ids) => req('POST', '/api/nodes/bulk-delete', { ids }),
   bulkReparent: (ids, newParentId) =>
     req('POST', '/api/nodes/bulk-reparent', { ids, newParentId }),

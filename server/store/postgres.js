@@ -37,6 +37,8 @@ export function createPostgresStore({ threshold, connectionString }) {
       createdAt: r.created_at,
       committedAt: r.committed_at,
       authorId: r.author_id,
+      description: r.description ?? '',
+      aliases: r.aliases ?? [],
       x: r.x ?? null,
       y: r.y ?? null,
       upvotes: r.upvotes ?? 0,
@@ -66,6 +68,8 @@ export function createPostgresStore({ threshold, connectionString }) {
         );
         ALTER TABLE nodes ADD COLUMN IF NOT EXISTS x DOUBLE PRECISION;
         ALTER TABLE nodes ADD COLUMN IF NOT EXISTS y DOUBLE PRECISION;
+        ALTER TABLE nodes ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+        ALTER TABLE nodes ADD COLUMN IF NOT EXISTS aliases TEXT[] NOT NULL DEFAULT '{}';
         CREATE TABLE IF NOT EXISTS votes (
           node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
           voter_id TEXT NOT NULL,
@@ -132,16 +136,18 @@ export function createPostgresStore({ threshold, connectionString }) {
 
       // Anti-duplication: compare against siblings sharing the same parent.
       const key = normalizeText(text);
+      const matches = (r) =>
+        normalizeText(r.text) === key || (r.aliases || []).some((a) => normalizeText(a) === key);
       const { rows: siblings } = await pool.query(
         parent
-          ? 'SELECT id, text, status FROM nodes WHERE map_id = $1 AND parent_id = $2'
-          : 'SELECT id, text, status FROM nodes WHERE map_id = $1 AND parent_id IS NULL',
+          ? 'SELECT id, text, status, aliases FROM nodes WHERE map_id = $1 AND parent_id = $2'
+          : 'SELECT id, text, status, aliases FROM nodes WHERE map_id = $1 AND parent_id IS NULL',
         parent ? [mapId, parent] : [mapId]
       );
-      if (siblings.some((r) => r.status === 'committed' && normalizeText(r.text) === key)) {
+      if (siblings.some((r) => r.status === 'committed' && matches(r))) {
         throw new Error('duplicate-committed');
       }
-      const dup = siblings.find((r) => r.status === 'proposed' && normalizeText(r.text) === key);
+      const dup = siblings.find((r) => r.status === 'proposed' && matches(r));
       if (dup) {
         // Admin author commits the existing proposal; others fold into a vote.
         if (asAdmin) {
@@ -361,6 +367,29 @@ export function createPostgresStore({ threshold, connectionString }) {
         [nodeId]
       );
       return { ...rowToNode(rows[0]), upvotes: c[0].cnt };
+    },
+
+    async updateNode({ nodeId, text, description, aliases }) {
+      const sets = [];
+      const vals = [nodeId];
+      let i = 2;
+      if (typeof text === 'string' && text.trim()) { sets.push(`text = $${i++}`); vals.push(text.trim()); }
+      if (typeof description === 'string') { sets.push(`description = $${i++}`); vals.push(description); }
+      if (Array.isArray(aliases)) {
+        sets.push(`aliases = $${i++}`);
+        vals.push(aliases.map((a) => String(a).trim()).filter(Boolean));
+      }
+      if (!sets.length) {
+        const { rows } = await pool.query('SELECT * FROM nodes WHERE id = $1', [nodeId]);
+        if (!rows.length) throw new Error('node-not-found');
+        return rowToNode(rows[0]);
+      }
+      const { rows } = await pool.query(
+        `UPDATE nodes SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+        vals
+      );
+      if (!rows.length) throw new Error('node-not-found');
+      return rowToNode(rows[0]);
     },
 
     async setPosition({ nodeId, x, y }) {

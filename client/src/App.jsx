@@ -14,6 +14,7 @@ import { layoutTree } from './layout.js';
 import { MapActions } from './MapActions.js';
 import MindNode from './components/MindNode.jsx';
 import ActivityFeed from './components/ActivityFeed.jsx';
+import NodeDetail from './components/NodeDetail.jsx';
 
 const nodeTypes = { mind: MindNode };
 const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
@@ -41,6 +42,7 @@ export default function App() {
   const votedRef = useRef(loadVoted());
   const wsRef = useRef(null);
   const draggingRef = useRef(false);
+  const selectedIdsRef = useRef([]);
 
   const mapIdRef = useRef(null);
 
@@ -142,6 +144,7 @@ export default function App() {
 
   const clearSelection = useCallback(() => {
     setRfNodes((ns) => ns.map((n) => (n.selected ? { ...n, selected: false } : n)));
+    selectedIdsRef.current = [];
     setSelectedIds([]);
   }, [setRfNodes]);
 
@@ -165,7 +168,9 @@ export default function App() {
   }, [confirmDelete, loadMap, clearSelection]);
 
   const onSelectionChange = useCallback(({ nodes }) => {
-    setSelectedIds(nodes.map((n) => n.id));
+    const ids = nodes.map((n) => n.id);
+    selectedIdsRef.current = ids;
+    setSelectedIds(ids);
   }, []);
 
   // Re-org: "Move" arms one or many nodes, then the next node/canvas click
@@ -202,6 +207,31 @@ export default function App() {
   const onBulkMove = useCallback(() => {
     setReorg({ ids: selectedIds, label: `${selectedIds.length} nodes` });
   }, [selectedIds]);
+
+  // Select exactly one node (used to jump to a child from the detail panel).
+  const selectOnly = useCallback(
+    (id) => {
+      setRfNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === id })));
+      selectedIdsRef.current = [id];
+      setSelectedIds([id]);
+    },
+    [setRfNodes]
+  );
+
+  const onSaveNode = useCallback(
+    async (patch) => {
+      const id = selectedIds[0];
+      if (!id) return;
+      try {
+        await api.updateNode(id, patch);
+        flash('Saved.');
+        await loadMap(mapIdRef.current);
+      } catch (e) {
+        flash(`Save failed: ${e.message}`);
+      }
+    },
+    [selectedIds, loadMap]
+  );
 
   const onBulkDelete = useCallback(() => {
     setConfirmDelete({ ids: selectedIds, label: `${selectedIds.length} nodes`, isBulk: true });
@@ -278,7 +308,14 @@ export default function App() {
   // incoming live update never yanks the node out from under the cursor.
   useEffect(() => {
     if (!map || draggingRef.current) return;
-    setRfNodes(layoutTree(map.nodes, map.links).flowNodes);
+    // Preserve the current selection across a reseed so the detail panel (and a
+    // multi-selection) survives live updates and edits.
+    const sel = new Set(selectedIdsRef.current);
+    setRfNodes(
+      layoutTree(map.nodes, map.links).flowNodes.map((n) =>
+        sel.has(n.id) ? { ...n, selected: true } : n
+      )
+    );
   }, [map, setRfNodes]);
 
   // Dragging from one node's handle to another (admin) adds an extra parent
@@ -379,6 +416,26 @@ export default function App() {
     return del.size;
   }, [confirmDelete, map]);
 
+  // When exactly one node is selected, the right panel becomes its detail view.
+  const detailNode = useMemo(
+    () => (selectedIds.length === 1 && map ? map.nodes.find((n) => n.id === selectedIds[0]) : null),
+    [selectedIds, map]
+  );
+  const detailChildren = useMemo(() => {
+    if (!detailNode || !map) return [];
+    const byId = new Map(map.nodes.map((n) => [n.id, n]));
+    const primary = map.nodes
+      .filter((n) => n.parentId === detailNode.id)
+      .map((n) => ({ ...n, via: 'primary' }));
+    const primaryIds = new Set(primary.map((n) => n.id));
+    const linked = (map.links || [])
+      .filter((l) => l.parentId === detailNode.id && !primaryIds.has(l.childId))
+      .map((l) => byId.get(l.childId))
+      .filter(Boolean)
+      .map((n) => ({ ...n, via: 'link' }));
+    return [...primary, ...linked];
+  }, [detailNode, map]);
+
   return (
     <MapActions.Provider value={actions}>
       <div className="app">
@@ -449,7 +506,18 @@ export default function App() {
               </ReactFlow>
             </ReactFlowProvider>
           </div>
-          <ActivityFeed activity={map?.activity} />
+          {detailNode ? (
+            <NodeDetail
+              node={detailNode}
+              children={detailChildren}
+              isAdmin={isAdmin}
+              onSave={onSaveNode}
+              onSelectNode={selectOnly}
+              onClose={clearSelection}
+            />
+          ) : (
+            <ActivityFeed activity={map?.activity} />
+          )}
 
           {isAdmin && selectedIds.length >= 2 && !reorg && (
             <div className="bulkbar">

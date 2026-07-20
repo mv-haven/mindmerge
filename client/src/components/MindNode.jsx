@@ -19,6 +19,9 @@ function MindNode({ data }) {
     >
       <Handle type="target" position={Position.Left} />
       <div className="node__text">{data.text}</div>
+      {data.aliases?.length > 0 && (
+        <div className="node__aka">aka {data.aliases.join(', ')}</div>
+      )}
 
       {proposed ? (
         <div className="node__proposal">

@@ -53,9 +53,9 @@ after(async () => {
 });
 
 async function freshMap() {
-  const { body } = await get('/api/default-map');
-  const full = await get(`/api/maps/${body.id}`);
-  const root = full.body.nodes.find((n) => !n.parentId);
+  // A brand-new map per test — real isolation, no cross-test node collisions.
+  const { body } = await post('/api/maps', { title: 'test map' });
+  const root = body.nodes.find((n) => !n.parentId);
   return { mapId: body.id, rootId: root.id };
 }
 
@@ -173,6 +173,28 @@ test('delete cascades a whole subtree', async () => {
   assert.equal(ids.has(a.id), false);
   assert.equal(ids.has(b.id), false);
   assert.equal(ids.has(c.id), false);
+});
+
+test('node update sets description and aliases', async () => {
+  const { mapId, rootId } = await freshMap();
+  const n = (await post(`/api/maps/${mapId}/proposals`, { parentId: rootId, text: 'Unit Turn' }, true)).body.node;
+  const upd = await post(`/api/nodes/${n.id}/update`, {
+    description: 'Preparing a unit for the next resident.',
+    aliases: ['Make Ready', ' Turn '],
+  }, true);
+  assert.equal(upd.status, 200);
+  assert.equal(upd.body.description, 'Preparing a unit for the next resident.');
+  assert.deepEqual(upd.body.aliases, ['Make Ready', 'Turn']);
+});
+
+test('anti-dup matches an alias, not just the primary name', async () => {
+  const { mapId, rootId } = await freshMap();
+  const n = (await post(`/api/maps/${mapId}/proposals`, { parentId: rootId, text: 'Unit Turn' }, true)).body.node;
+  await post(`/api/nodes/${n.id}/update`, { aliases: ['Make Ready'] }, true);
+  // Proposing the alias as a new term should be blocked as a duplicate.
+  const dup = await post(`/api/maps/${mapId}/proposals`, { parentId: rootId, text: 'make ready' });
+  assert.equal(dup.status, 400);
+  assert.equal(dup.body.error, 'duplicate-committed');
 });
 
 test('a node can have multiple parents (add + reject cycle)', async () => {
