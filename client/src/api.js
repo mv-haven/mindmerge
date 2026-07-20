@@ -52,6 +52,9 @@ export const api = {
   moveNode: (nodeId, { x, y }) => req('POST', `/api/nodes/${nodeId}/position`, { x, y }),
   adminCommit: (nodeId) => req('POST', `/api/nodes/${nodeId}/commit`),
   adminDismiss: (nodeId) => req('POST', `/api/nodes/${nodeId}/dismiss`),
+  adminDelete: (nodeId) => req('POST', `/api/nodes/${nodeId}/delete`),
+  adminReparent: (nodeId, newParentId) =>
+    req('POST', `/api/nodes/${nodeId}/reparent`, { newParentId }),
   // Validate an admin key against the server before persisting it.
   async unlockAdmin(key) {
     const res = await fetch('/api/admin/check', { headers: { 'x-admin-key': key } });

@@ -34,6 +34,7 @@ export default function App() {
   const [threshold, setThreshold] = useState(10);
   const [isAdmin, setIsAdmin] = useState(Boolean(getAdminKey()));
   const [proposeParent, setProposeParent] = useState(null);
+  const [reorg, setReorg] = useState(null); // { id, text } of the node being moved
   const [banner, setBanner] = useState(null);
   const votedRef = useRef(loadVoted());
   const wsRef = useRef(null);
@@ -137,6 +138,55 @@ export default function App() {
     [loadMap]
   );
 
+  const onDelete = useCallback(
+    async (nodeId) => {
+      try {
+        await api.adminDelete(nodeId);
+        flash('Node and its branch deleted.');
+        await loadMap(mapIdRef.current);
+      } catch (e) {
+        flash(`Delete failed: ${e.message}`);
+      }
+    },
+    [loadMap]
+  );
+
+  // Re-org: "Move" arms a node, then the next node/canvas click reparents it.
+  const onStartReorg = useCallback((nodeId, text) => {
+    setReorg({ id: nodeId, text });
+  }, []);
+
+  const applyReparent = useCallback(
+    async (newParentId) => {
+      const moving = reorg;
+      setReorg(null);
+      if (!moving || moving.id === newParentId) return;
+      try {
+        await api.adminReparent(moving.id, newParentId);
+        flash(newParentId ? 'Node moved under new parent.' : 'Node detached to a root.');
+        await loadMap(mapIdRef.current);
+      } catch (e) {
+        const map = {
+          'would-create-cycle': "Can't move a node under its own descendant.",
+          'parent-not-committed': 'New parent must be a committed node.',
+          'cannot-parent-to-self': "Can't parent a node to itself.",
+        };
+        flash(map[e.message] || `Move failed: ${e.message}`);
+      }
+    },
+    [reorg, loadMap]
+  );
+
+  // Esc cancels an in-progress move.
+  useEffect(() => {
+    if (!reorg) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setReorg(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reorg]);
+
   const submitProposal = useCallback(
     async (text, color) => {
       const raw = proposeParent;
@@ -146,14 +196,16 @@ export default function App() {
       try {
         const result = await api.propose(mapIdRef.current, { parentId, text, color });
         if (result.merged) {
-          // The dup was folded into a vote on the existing proposal — record it.
+          // The dup was folded into a vote/commit on the existing proposal.
           votedRef.current.add(result.node.id);
           localStorage.setItem(VOTED_KEY, JSON.stringify([...votedRef.current]));
           flash(
             result.committed
-              ? 'Already proposed — your vote pushed it over the line and it committed.'
+              ? 'That was already proposed — it is now committed.'
               : 'Already proposed — added your upvote to the existing one.'
           );
+        } else if (result.committed) {
+          flash('Node added to the master map.');
         } else {
           flash('Proposal added. Collect upvotes to merge it.');
         }
@@ -210,8 +262,19 @@ export default function App() {
   }, []);
 
   const actions = useMemo(
-    () => ({ threshold, isAdmin, hasVoted, onVote, onPropose: setProposeParent, onCommit, onDismiss }),
-    [threshold, isAdmin, hasVoted, onVote, onCommit, onDismiss]
+    () => ({
+      threshold,
+      isAdmin,
+      hasVoted,
+      onVote,
+      onPropose: setProposeParent,
+      onCommit,
+      onDismiss,
+      onDelete,
+      onStartReorg,
+      reorgId: reorg?.id || null,
+    }),
+    [threshold, isAdmin, hasVoted, onVote, onCommit, onDismiss, onDelete, onStartReorg, reorg]
   );
 
   const counts = useMemo(() => {
@@ -251,6 +314,13 @@ export default function App() {
 
         {banner && <div className="banner">{banner}</div>}
 
+        {reorg && (
+          <div className="banner banner--reorg">
+            Moving “{reorg.text}” — click a node to make it the new parent, or click
+            empty canvas to detach to a root. (Esc to cancel)
+          </div>
+        )}
+
         <div className="body">
           <div className="canvas">
             <ReactFlowProvider>
@@ -260,6 +330,8 @@ export default function App() {
                 onNodesChange={onNodesChange}
                 onNodeDragStart={onNodeDragStart}
                 onNodeDragStop={onNodeDragStop}
+                onNodeClick={reorg ? (_e, node) => applyReparent(node.id) : undefined}
+                onPaneClick={reorg ? () => applyReparent(null) : undefined}
                 nodeTypes={nodeTypes}
                 fitView
                 proOptions={{ hideAttribution: true }}
@@ -277,6 +349,7 @@ export default function App() {
         {proposeParent && (
           <ProposeDialog
             isRoot={proposeParent === ROOT_SENTINEL}
+            isAdmin={isAdmin}
             onCancel={() => setProposeParent(null)}
             onSubmit={submitProposal}
           />
@@ -286,18 +359,26 @@ export default function App() {
   );
 }
 
-function ProposeDialog({ isRoot, onCancel, onSubmit }) {
+function ProposeDialog({ isRoot, isAdmin, onCancel, onSubmit }) {
   const [text, setText] = useState('');
   const [color, setColor] = useState(COLORS[0]);
+  const title = isAdmin
+    ? isRoot
+      ? 'New root node'
+      : 'New node'
+    : isRoot
+      ? 'New unconnected node'
+      : 'Propose a new node';
+  const hint = isAdmin
+    ? 'As admin, this is added straight to the master map — no proposal or votes needed.'
+    : isRoot
+      ? 'Starts as a free-floating proposal with no parent. It merges into the master map as its own island once it hits the vote threshold (or an admin commits it).'
+      : 'It joins as a pending proposal. Once it hits the vote threshold (or an admin commits it), it merges into the master map.';
   return (
     <div className="overlay" onClick={onCancel}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
-        <h3>{isRoot ? 'New unconnected node' : 'Propose a new node'}</h3>
-        <p className="dialog__hint">
-          {isRoot
-            ? 'Starts as a free-floating proposal with no parent. It merges into the master map as its own island once it hits the vote threshold (or an admin commits it).'
-            : 'It joins as a pending proposal. Once it hits the vote threshold (or an admin commits it), it merges into the master map.'}
-        </p>
+        <h3>{title}</h3>
+        <p className="dialog__hint">{hint}</p>
         <input
           autoFocus
           className="dialog__input"
@@ -318,7 +399,9 @@ function ProposeDialog({ isRoot, onCancel, onSubmit }) {
         </div>
         <div className="dialog__actions">
           <button className="ghostbtn" onClick={onCancel}>Cancel</button>
-          <button className="primarybtn" onClick={() => onSubmit(text, color)}>Add proposal</button>
+          <button className="primarybtn" onClick={() => onSubmit(text, color)}>
+            {isAdmin ? 'Add node' : 'Add proposal'}
+          </button>
         </div>
       </div>
     </div>

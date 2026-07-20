@@ -104,7 +104,7 @@ export function createMemoryStore({ threshold }) {
       return this.getMap(id);
     },
 
-    async createProposal({ mapId, parentId, text, color, authorId }) {
+    async createProposal({ mapId, parentId, text, color, authorId, asAdmin }) {
       if (!state.maps[mapId]) throw new Error('map-not-found');
       // parentId null/empty => a new unconnected (root/island) node.
       const parent = parentId || null;
@@ -124,11 +124,17 @@ export function createMemoryStore({ threshold }) {
       }
       const dup = siblings.find((n) => n.status === 'proposed' && normalizeText(n.text) === key);
       if (dup) {
-        // Don't create a competing duplicate — fold this into a vote for it.
+        // An admin "creating" a node that matches a pending proposal just
+        // commits that proposal; everyone else folds into an upvote for it.
+        if (asAdmin) {
+          const node = await this.adminCommit({ nodeId: dup.id });
+          return { node, merged: true, committed: true };
+        }
         const { node, committed } = await this.vote({ nodeId: dup.id, voterId: authorId || 'anon' });
         return { node, merged: true, committed };
       }
 
+      const now = new Date().toISOString();
       const id = nanoid(10);
       const node = {
         id,
@@ -136,9 +142,10 @@ export function createMemoryStore({ threshold }) {
         parentId: parent,
         text: (text || '').trim() || 'Untitled',
         color: color || '#0ea5e9',
-        status: 'proposed',
-        createdAt: new Date().toISOString(),
-        committedAt: null,
+        // Admins author straight into the master map; everyone else proposes.
+        status: asAdmin ? 'committed' : 'proposed',
+        createdAt: now,
+        committedAt: asAdmin ? now : null,
         authorId: authorId || 'anon',
         x: null,
         y: null,
@@ -146,7 +153,57 @@ export function createMemoryStore({ threshold }) {
       state.nodes[id] = node;
       state.votes[id] = new Set();
       scheduleSave();
-      return { node: shapeNode(node), merged: false, committed: false };
+      return { node: shapeNode(node), merged: false, committed: Boolean(asAdmin) };
+    },
+
+    async deleteNode({ nodeId }) {
+      const node = state.nodes[nodeId];
+      if (!node) throw new Error('node-not-found');
+      const mapId = node.mapId;
+      // Cascade: remove the node and its whole subtree.
+      const toDelete = [];
+      const stack = [nodeId];
+      while (stack.length) {
+        const cur = stack.pop();
+        toDelete.push(cur);
+        for (const n of Object.values(state.nodes)) {
+          if (n.parentId === cur) stack.push(n.id);
+        }
+      }
+      for (const id of toDelete) {
+        delete state.nodes[id];
+        delete state.votes[id];
+      }
+      scheduleSave();
+      return { mapId, deleted: toDelete.length };
+    },
+
+    async reparent({ nodeId, newParentId }) {
+      const node = state.nodes[nodeId];
+      if (!node) throw new Error('node-not-found');
+      const target = newParentId || null;
+      if (target) {
+        if (target === nodeId) throw new Error('cannot-parent-to-self');
+        const p = state.nodes[target];
+        if (!p || p.mapId !== node.mapId) throw new Error('parent-not-found');
+        if (p.status !== 'committed') throw new Error('parent-not-committed');
+        // Cycle guard: the new parent must not be a descendant of the node.
+        const descendants = new Set();
+        const stack = [nodeId];
+        while (stack.length) {
+          const cur = stack.pop();
+          for (const n of Object.values(state.nodes)) {
+            if (n.parentId === cur && !descendants.has(n.id)) {
+              descendants.add(n.id);
+              stack.push(n.id);
+            }
+          }
+        }
+        if (descendants.has(target)) throw new Error('would-create-cycle');
+      }
+      node.parentId = target;
+      scheduleSave();
+      return shapeNode(node);
     },
 
     async vote({ nodeId, voterId }) {

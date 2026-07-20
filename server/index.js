@@ -56,6 +56,8 @@ api.post('/maps/:id/proposals', async (req, res) => {
       text: req.body?.text,
       color: req.body?.color,
       authorId: req.body?.authorId,
+      // A valid admin key means the node is authored straight into the map.
+      asAdmin: (req.get('x-admin-key') || '') === ADMIN_KEY,
     });
     await broadcastMap(req.params.id);
     res.status(201).json(result);
@@ -116,6 +118,31 @@ api.post('/nodes/:id/dismiss', requireAdmin, async (req, res) => {
     const { mapId } = await store.dismiss({ nodeId: req.params.id });
     await broadcastMap(mapId);
     res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Delete any node (and its subtree). Admin only.
+api.post('/nodes/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const { mapId } = await store.deleteNode({ nodeId: req.params.id });
+    await broadcastMap(mapId);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Re-org: move a node under a new parent (null = make it a root). Admin only.
+api.post('/nodes/:id/reparent', requireAdmin, async (req, res) => {
+  try {
+    const node = await store.reparent({
+      nodeId: req.params.id,
+      newParentId: req.body?.newParentId ?? null,
+    });
+    await broadcastMap(node.mapId);
+    res.json(node);
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

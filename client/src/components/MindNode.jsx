@@ -10,9 +10,11 @@ function MindNode({ data }) {
   const proposed = data.status === 'proposed';
   const voted = hasVoted(data.id);
 
+  const moving = actions.reorgId === data.id;
+
   return (
     <div
-      className={`node ${proposed ? 'node--proposed' : 'node--committed'}`}
+      className={`node ${proposed ? 'node--proposed' : 'node--committed'} ${moving ? 'node--moving' : ''}`}
       style={proposed ? undefined : { '--accent': data.color }}
     >
       <Handle type="target" position={Position.Left} />
@@ -40,9 +42,27 @@ function MindNode({ data }) {
           )}
         </div>
       ) : (
-        <button className="node__add nodrag" onClick={() => actions.onPropose(data.id)}>
-          + propose
-        </button>
+        <div className="node__committedbar">
+          <button className="node__add nodrag" onClick={() => actions.onPropose(data.id)}>
+            {isAdmin ? '+ add child' : '+ propose'}
+          </button>
+          {isAdmin && (
+            <span className="node__admin">
+              <button
+                className="mini mini--move nodrag"
+                onClick={() => actions.onStartReorg(data.id, data.text)}
+              >
+                Move
+              </button>
+              <button
+                className="mini mini--dismiss nodrag"
+                onClick={() => actions.onDelete(data.id)}
+              >
+                Delete
+              </button>
+            </span>
+          )}
+        </div>
       )}
 
       <Handle type="source" position={Position.Right} />

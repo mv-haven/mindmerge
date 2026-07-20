@@ -106,7 +106,7 @@ export function createPostgresStore({ threshold, connectionString }) {
       return this.getMap(id);
     },
 
-    async createProposal({ mapId, parentId, text, color, authorId }) {
+    async createProposal({ mapId, parentId, text, color, authorId, asAdmin }) {
       // parentId null/empty => a new unconnected (root/island) node.
       const parent = parentId || null;
       if (parent) {
@@ -131,17 +131,64 @@ export function createPostgresStore({ threshold, connectionString }) {
       }
       const dup = siblings.find((r) => r.status === 'proposed' && normalizeText(r.text) === key);
       if (dup) {
+        // Admin author commits the existing proposal; others fold into a vote.
+        if (asAdmin) {
+          const node = await this.adminCommit({ nodeId: dup.id });
+          return { node, merged: true, committed: true };
+        }
         const { node, committed } = await this.vote({ nodeId: dup.id, voterId: authorId || 'anon' });
         return { node, merged: true, committed };
       }
 
+      const status = asAdmin ? 'committed' : 'proposed';
       const id = nanoid(10);
       const { rows } = await pool.query(
-        `INSERT INTO nodes (id, map_id, parent_id, text, color, status, author_id)
-         VALUES ($1, $2, $3, $4, $5, 'proposed', $6) RETURNING *`,
-        [id, mapId, parent, (text || '').trim() || 'Untitled', color || '#0ea5e9', authorId || 'anon']
+        `INSERT INTO nodes (id, map_id, parent_id, text, color, status, author_id, committed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $6 = 'committed' THEN now() ELSE NULL END)
+         RETURNING *`,
+        [id, mapId, parent, (text || '').trim() || 'Untitled', color || '#0ea5e9', status, authorId || 'anon']
       );
-      return { node: { ...rowToNode(rows[0]), upvotes: 0 }, merged: false, committed: false };
+      return { node: { ...rowToNode(rows[0]), upvotes: 0 }, merged: false, committed: Boolean(asAdmin) };
+    },
+
+    async deleteNode({ nodeId }) {
+      const { rows } = await pool.query('SELECT map_id FROM nodes WHERE id = $1', [nodeId]);
+      if (!rows.length) throw new Error('node-not-found');
+      // FK ON DELETE CASCADE removes the subtree and its votes.
+      await pool.query('DELETE FROM nodes WHERE id = $1', [nodeId]);
+      return { mapId: rows[0].map_id };
+    },
+
+    async reparent({ nodeId, newParentId }) {
+      const { rows: nrows } = await pool.query('SELECT * FROM nodes WHERE id = $1', [nodeId]);
+      if (!nrows.length) throw new Error('node-not-found');
+      const node = nrows[0];
+      const target = newParentId || null;
+      if (target) {
+        if (target === nodeId) throw new Error('cannot-parent-to-self');
+        const { rows: prows } = await pool.query(
+          'SELECT * FROM nodes WHERE id = $1 AND map_id = $2',
+          [target, node.map_id]
+        );
+        if (!prows.length) throw new Error('parent-not-found');
+        if (prows[0].status !== 'committed') throw new Error('parent-not-committed');
+        // Cycle guard: target must not be a descendant of the node.
+        const { rows: cyc } = await pool.query(
+          `WITH RECURSIVE d AS (
+             SELECT id FROM nodes WHERE parent_id = $1
+             UNION ALL
+             SELECT n.id FROM nodes n JOIN d ON n.parent_id = d.id
+           )
+           SELECT id FROM d WHERE id = $2`,
+          [nodeId, target]
+        );
+        if (cyc.length) throw new Error('would-create-cycle');
+      }
+      const { rows } = await pool.query(
+        'UPDATE nodes SET parent_id = $2 WHERE id = $1 RETURNING *',
+        [nodeId, target]
+      );
+      return rowToNode(rows[0]);
     },
 
     async vote({ nodeId, voterId }) {
