@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { nanoid } from 'nanoid';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
-const DATA_FILE = path.join(DATA_DIR, 'store.json');
+// DATA_FILE is overridable (used by the e2e suite to isolate its store).
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, '..', '..', 'data', 'store.json');
+const DATA_DIR = path.dirname(DATA_FILE);
 
 // Normalized text key for duplicate detection: trim, lowercase, collapse runs
 // of whitespace. Keep this identical to the one in postgres.js.
