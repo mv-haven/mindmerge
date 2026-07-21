@@ -11,13 +11,25 @@ function MindNode({ data }) {
   const voted = hasVoted(data.id);
 
   const moving = actions.reorgIds?.includes(data.id);
+  const collapsible = actions.collapsibleSet?.has(data.id);
+  const isCollapsed = actions.collapsedSet?.has(data.id);
+  const hiddenCount = actions.subtreeCounts?.get(data.id) || 0;
 
   return (
     <div
-      className={`node ${proposed ? 'node--proposed' : 'node--committed'} ${moving ? 'node--moving' : ''}`}
+      className={`node ${proposed ? 'node--proposed' : 'node--committed'} ${moving ? 'node--moving' : ''} ${isCollapsed ? 'node--collapsed' : ''}`}
       style={proposed ? undefined : { '--accent': data.color }}
     >
       <Handle type="target" position={Position.Left} />
+      {collapsible && (
+        <button
+          className="node__collapse nodrag"
+          onClick={(e) => { e.stopPropagation(); actions.onToggleCollapse(data.id); }}
+          title={isCollapsed ? `Expand ${hiddenCount} hidden` : 'Collapse subtree'}
+        >
+          {isCollapsed ? `▸ ${hiddenCount}` : '▾'}
+        </button>
+      )}
       <div className="node__text">{data.text}</div>
       {data.aliases?.length > 0 && (
         <div className="node__aka">aka {data.aliases.join(', ')}</div>

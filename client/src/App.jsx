@@ -15,6 +15,17 @@ import { MapActions } from './MapActions.js';
 import MindNode from './components/MindNode.jsx';
 import ActivityFeed from './components/ActivityFeed.jsx';
 import NodeDetail from './components/NodeDetail.jsx';
+import GlossaryView from './components/GlossaryView.jsx';
+import DomainsView from './components/DomainsView.jsx';
+import AnalyticsView from './components/AnalyticsView.jsx';
+import { visibleIds, hasBackboneChildren } from './graphModel.js';
+
+const VIEWS = [
+  { id: 'graph', label: 'Graph' },
+  { id: 'glossary', label: 'Glossary' },
+  { id: 'domains', label: 'Domains' },
+  { id: 'analytics', label: 'Analytics' },
+];
 
 const nodeTypes = { mind: MindNode };
 const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
@@ -45,6 +56,8 @@ export default function App() {
   const selectedIdsRef = useRef([]);
   const rfRef = useRef(null);
   const [search, setSearch] = useState('');
+  const [view, setView] = useState('graph');
+  const [collapsed, setCollapsed] = useState(() => new Set()); // node ids whose subtree is folded
 
   const mapIdRef = useRef(null);
 
@@ -350,9 +363,42 @@ export default function App() {
     flash('Admin locked.');
   };
 
+  // Collapse: which nodes have foldable subtrees, and how many descendants each
+  // fold hides (for the node's badge). Static from the map's backbone.
+  const collapsibleSet = useMemo(() => (map ? hasBackboneChildren(map.nodes) : new Set()), [map]);
+  const subtreeCounts = useMemo(() => {
+    if (!map) return new Map();
+    const kids = new Map();
+    for (const n of map.nodes) {
+      if (!n.parentId) continue;
+      if (!kids.has(n.parentId)) kids.set(n.parentId, []);
+      kids.get(n.parentId).push(n.id);
+    }
+    const count = new Map();
+    const walk = (id) => {
+      if (count.has(id)) return count.get(id);
+      let total = 0;
+      for (const c of kids.get(id) || []) total += 1 + walk(c);
+      count.set(id, total);
+      return total;
+    };
+    for (const n of map.nodes) walk(n.id);
+    return count;
+  }, [map]);
+
+  // The subset of the map actually shown in the graph, honoring collapse.
+  const visible = useMemo(() => {
+    if (!map) return { nodes: [], links: [] };
+    const vis = visibleIds(map.nodes, collapsed);
+    return {
+      nodes: map.nodes.filter((n) => vis.has(n.id)),
+      links: (map.links || []).filter((l) => vis.has(l.parentId) && vis.has(l.childId)),
+    };
+  }, [map, collapsed]);
+
   const flowEdges = useMemo(
-    () => (map ? layoutTree(map.nodes, map.links).flowEdges : []),
-    [map]
+    () => (map ? layoutTree(visible.nodes, visible.links).flowEdges : []),
+    [map, visible]
   );
 
   // Focus mode: clicking a single node dims everything not related to it. The
@@ -420,11 +466,54 @@ export default function App() {
     // multi-selection) survives live updates and edits.
     const sel = new Set(selectedIdsRef.current);
     setRfNodes(
-      layoutTree(map.nodes, map.links).flowNodes.map((n) =>
+      layoutTree(visible.nodes, visible.links).flowNodes.map((n) =>
         sel.has(n.id) ? { ...n, selected: true } : n
       )
     );
-  }, [map, setRfNodes]);
+  }, [map, visible, setRfNodes]);
+
+  // Collapse controls. Toggling folds/unfolds one node's subtree; the two bulk
+  // buttons collapse to a domain overview (roots + their direct children) or
+  // expand everything.
+  const onToggleCollapse = useCallback((id) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+  const collapseAll = useCallback(() => {
+    if (!map) return;
+    const rootIds = new Set(map.nodes.filter((n) => !n.parentId).map((n) => n.id));
+    // Fold every foldable node except the roots, leaving domains + first level.
+    setCollapsed(new Set([...collapsibleSet].filter((id) => !rootIds.has(id))));
+  }, [map, collapsibleSet]);
+  const expandAll = useCallback(() => setCollapsed(new Set()), []);
+
+  // Jump from a non-graph view to a node on the graph. Unfold any collapsed
+  // ancestors so the target is actually visible, then select and center it.
+  const onOpenNode = useCallback(
+    (id) => {
+      setView('graph');
+      if (map) {
+        const byId = new Map(map.nodes.map((n) => [n.id, n]));
+        setCollapsed((prev) => {
+          if (prev.size === 0) return prev;
+          const next = new Set(prev);
+          let cur = byId.get(id)?.parentId, guard = 0;
+          while (cur && guard++ < 999) { next.delete(cur); cur = byId.get(cur)?.parentId; }
+          return next;
+        });
+      }
+      // Select AFTER the graph mounts: switching views remounts ReactFlow, whose
+      // own mount-time onSelectionChange([]) would otherwise clobber the pick.
+      setTimeout(() => {
+        selectOnly(id);
+        rfRef.current?.fitView({ nodes: [{ id }], duration: 500, maxZoom: 1.2 });
+      }, 90);
+    },
+    [selectOnly, map]
+  );
 
   // Dragging from one node's handle to another (admin) adds an extra parent
   // edge: source becomes an additional parent of target.
@@ -488,8 +577,12 @@ export default function App() {
       onDelete,
       onStartReorg,
       reorgIds: reorg?.ids || [],
+      collapsedSet: collapsed,
+      collapsibleSet,
+      subtreeCounts,
+      onToggleCollapse,
     }),
-    [threshold, isAdmin, hasVoted, onVote, onCommit, onDismiss, onDelete, onStartReorg, reorg]
+    [threshold, isAdmin, hasVoted, onVote, onCommit, onDismiss, onDelete, onStartReorg, reorg, collapsed, collapsibleSet, subtreeCounts, onToggleCollapse]
   );
 
   const searchResults = useMemo(() => {
@@ -603,7 +696,30 @@ export default function App() {
               </ul>
             )}
           </div>
+          <nav className="viewtabs" role="tablist">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                role="tab"
+                aria-selected={view === v.id}
+                className={`viewtab ${view === v.id ? 'viewtab--on' : ''}`}
+                onClick={() => setView(v.id)}
+              >
+                {v.label}
+              </button>
+            ))}
+          </nav>
           <div className="topbar__right">
+            {view === 'graph' && (
+              <>
+                <button className="ghostbtn" onClick={collapseAll} title="Fold every branch to a domain overview">
+                  Collapse
+                </button>
+                <button className="ghostbtn" onClick={expandAll} disabled={collapsed.size === 0} title="Unfold everything">
+                  Expand
+                </button>
+              </>
+            )}
             <button className="primarybtn" onClick={() => setProposeParent(ROOT_SENTINEL)}>
               + New node
             </button>
@@ -632,6 +748,8 @@ export default function App() {
         )}
 
         <div className="body">
+          {view === 'graph' ? (
+          <>
           <div className="canvas">
             <ReactFlowProvider>
               <ReactFlow
@@ -690,6 +808,14 @@ export default function App() {
                 Clear
               </button>
             </div>
+          )}
+          </>
+          ) : view === 'glossary' ? (
+            <GlossaryView map={map} onOpenNode={onOpenNode} />
+          ) : view === 'domains' ? (
+            <DomainsView map={map} onOpenNode={onOpenNode} />
+          ) : (
+            <AnalyticsView map={map} onOpenNode={onOpenNode} />
           )}
         </div>
 
