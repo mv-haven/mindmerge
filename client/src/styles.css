@@ -304,7 +304,19 @@ body { background: var(--bg); color: var(--ink); }
 .glossary__empty, .glossary__table td.glossary__empty { text-align: center; color: var(--muted); padding: 28px; }
 
 /* ---- Domains treemap ---- */
-.domains__legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.domains__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.crumb { border: none; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); padding: 4px 8px; border-radius: 7px; cursor: pointer; }
+.crumb:hover { background: #f1f5f9; color: var(--ink); }
+.crumb--on { color: var(--ink); }
+.crumb__wrap { display: inline-flex; align-items: center; gap: 2px; }
+.crumb__sep { color: var(--line); font-size: 11px; }
+.ghostbtn--sm { padding: 4px 10px; font-size: 12px; }
+.domains__legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.treemap__domaing { cursor: pointer; }
+.treemap__domaing:hover .treemap__domain { fill-opacity: .75; }
+@keyframes treemapEnter { from { opacity: 0; transform: scale(.965); } to { opacity: 1; transform: scale(1); } }
+.treemap__enter { animation: treemapEnter .28s cubic-bezier(.22,.61,.36,1); transform-origin: center; transform-box: view-box; }
 .domains__canvas { flex: 1; min-height: 0; padding: 16px 18px; display: flex; }
 .treemap { width: 100%; height: 100%; }
 .treemap__domain { fill: #fff; fill-opacity: .5; stroke-width: 1.5; }
